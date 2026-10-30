@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important} body{margin:0} img{max-width:100%}</style>
+</head>
+<body>
+<title>백워드 설계 노트</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 단계 목록(왼쪽) · 작성 칸(가운데) · 제미나이 노트북 패널(오른쪽, 고정) — 연수 템플릿 14장과 같은 순서 */
+:root {
+  --bg: #F4F7FB; --surface: #FFFFFF; --sunk: #EEF2F8; --ink: #13213A; --muted: #5A6A82; --faint: #8796AC;
+  --line: #D7DFEA; --navy: #0B2A5B; --navy-soft: #E6EDF7; --teal: #0C7F81; --teal-soft: #E3F3F3;
+  --amber: #A86A0F; --amber-soft: #FCF1DE; --red: #B83A0C; --red-soft: #FBE9E2; --ok: #1F7A4D;
+  --code-bg: #0F1B33; --code-fg: #EAF0F8; --code-label: #7DD3D3;
+  --f-head: "IBM Plex Sans KR", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --f-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0C121C; --surface: #141C29; --sunk: #101722; --ink: #E5ECF6; --muted: #9AAAC0; --faint: #6F7F96;
+  --line: #263247; --navy: #9DBDF2; --navy-soft: #18263D; --teal: #4FC6C8; --teal-soft: #102C2E;
+  --amber: #F0B451; --amber-soft: #2B2212; --red: #F08A62; --red-soft: #2E1A13; --ok: #5FD39A;
+  --code-bg: #070C15; --code-fg: #E3EAF5; --code-label: #7DD3D3; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0C121C; --surface: #141C29; --sunk: #101722; --ink: #E5ECF6; --muted: #9AAAC0; --faint: #6F7F96;
+  --line: #263247; --navy: #9DBDF2; --navy-soft: #18263D; --teal: #4FC6C8; --teal-soft: #102C2E;
+  --amber: #F0B451; --amber-soft: #2B2212; --red: #F08A62; --red-soft: #2E1A13; --ok: #5FD39A;
+  --code-bg: #070C15; --code-fg: #E3EAF5; --code-label: #7DD3D3; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.6; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); }
+h1, h2, h3 { font-family: var(--f-head); text-wrap: balance; margin: 0; line-height: 1.3; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* top bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px; }
+.top-in { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; max-width: 1480px; margin: 0 auto; }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand h1 { font-size: 18px; color: var(--navy); }
+.brand small { color: var(--muted); font-size: 12.5px; }
+.top-meta { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; background: var(--sunk); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.pill.team { background: var(--navy-soft); color: var(--navy); border-color: transparent; }
+.pill.saved::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+
+.example-bar { background: var(--amber-soft); border-bottom: 1px solid var(--line);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 8px; }
+.example-bar .in { max-width: 1480px; margin: 0 auto; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+.example-bar b { color: var(--amber); }
+
+/* shell */
+.shell { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 60px; }
+nav.steps { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 70px); align-self: start; max-height: calc(100vh - 90px); overflow-y: auto; padding-right: 4px; }
+.grp { margin-bottom: 14px; }
+.grp-h { font-family: var(--f-head); font-size: 11.5px; font-weight: 600; letter-spacing: .06em; color: var(--faint); padding: 0 8px 4px; }
+.grp-h .t { float: right; font-family: var(--f-mono); letter-spacing: 0; }
+.step-btn { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 8px; border-radius: 8px; font-size: 14px; color: var(--ink); }
+.step-btn:hover { background: var(--sunk); }
+.step-btn.on { background: var(--navy-soft); color: var(--navy); font-weight: 700; }
+.step-btn .no { font-family: var(--f-mono); font-size: 11.5px; color: var(--faint); width: 22px; flex: none; }
+.step-btn .dot { margin-left: auto; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--faint); flex: none; }
+.step-btn .dot.half { border-color: var(--amber); background: linear-gradient(90deg, var(--amber) 50%, transparent 50%); }
+.step-btn .dot.full { border-color: var(--ok); background: var(--ok); }
+.step-btn.hot .lbl::after { content: "핵심"; margin-left: 6px; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: var(--red-soft); color: var(--red); font-weight: 700; }
+
+/* main */
+main { min-width: 0; }
+.step-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; margin-bottom: 16px; }
+.step-head .chip { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--navy); color: var(--surface); }
+.step-head .chip.teal { background: var(--teal); }
+.step-head .chip.red { background: var(--red); }
+.step-head .chip.amber { background: var(--amber); }
+.step-head h2 { font-size: 24px; flex-basis: 100%; }
+.step-head p { margin: 0; color: var(--muted); flex: 1 1 420px; }
+.step-head .slide { font-family: var(--f-mono); font-size: 12px; color: var(--faint); white-space: nowrap; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; min-width: 0; }
+.nb { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 70px); max-height: calc(100vh - 90px); overflow-y: auto; background: var(--sunk); }
+.panel-h { display: flex; align-items: center; gap: 8px; font-family: var(--f-head); font-weight: 700; font-size: 15px; margin-bottom: 12px; }
+.panel-h .tag { font-family: var(--f-body); font-size: 11.5px; font-weight: 500; color: var(--muted); margin-left: auto; }
+
+/* form */
+.f { display: grid; gap: 14px; }
+.row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+label.fl { display: grid; gap: 5px; min-width: 0; }
+.fl > span { font-size: 13px; font-weight: 700; color: var(--navy); }
+.fl > span em { font-style: normal; font-weight: 400; color: var(--muted); margin-left: 6px; }
+input[type=text], textarea, select { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; font-size: 14.5px; line-height: 1.55; }
+textarea { resize: vertical; min-height: 64px; }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+input:focus, textarea:focus, select:focus { border-color: var(--teal); outline: none; box-shadow: 0 0 0 3px var(--teal-soft); }
+.box-soft { background: var(--teal-soft); border-radius: 8px; padding: 12px 14px; }
+.box-amber { background: var(--amber-soft); border-radius: 8px; padding: 12px 14px; }
+.box-red { background: var(--red-soft); border-radius: 8px; padding: 12px 14px; }
+.box-amber h4, .box-soft h4, .box-red h4 { margin: 0 0 6px; font-family: var(--f-head); font-size: 14px; }
+.box-amber h4 { color: var(--amber); } .box-soft h4 { color: var(--teal); } .box-red h4 { color: var(--red); }
+.checks { display: grid; gap: 6px; }
+.checks label { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.checks input { margin-top: 5px; accent-color: var(--teal); }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.sub-h { font-family: var(--f-head); font-size: 15px; font-weight: 700; margin: 4px 0 -4px; color: var(--ink); }
+
+/* tables */
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table.t { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13.5px; }
+.t th { background: var(--navy); color: var(--surface); font-weight: 700; padding: 7px 8px; text-align: center; font-size: 12.5px; white-space: nowrap; }
+:root[data-theme="dark"] .t th { color: #0C121C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .t th { color: #0C121C; } }
+.t td { border-top: 1px solid var(--line); padding: 4px; vertical-align: top; background: var(--surface); }
+.t td.lab { background: var(--navy-soft); color: var(--navy); font-weight: 700; text-align: center; vertical-align: middle; padding: 6px 8px; white-space: nowrap; }
+.t td.q { color: var(--muted); font-size: 12.5px; vertical-align: middle; padding: 6px 8px; min-width: 140px; }
+.t textarea, .t input[type=text] { border-color: transparent; background: transparent; min-height: 52px; padding: 6px; font-size: 13.5px; }
+.t input[type=text] { min-height: 0; }
+.t textarea:hover, .t input:hover { border-color: var(--line); }
+.t tr.core td { background: var(--amber-soft); }
+.star { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; width: 30px; height: 30px; color: var(--faint); }
+.star.on { color: var(--amber); border-color: var(--amber); font-weight: 700; }
+.score { width: 40px; height: 32px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; font-size: 15px; }
+.score.o { color: var(--ok); border-color: var(--ok); } .score.t { color: var(--amber); border-color: var(--amber); } .score.x { color: var(--red); border-color: var(--red); background: var(--red-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chipbtn { border: 1px solid var(--line); background: var(--surface); padding: 5px 11px; border-radius: 999px; font-size: 13px; }
+.chipbtn.on { background: var(--teal); border-color: var(--teal); color: var(--surface); font-weight: 700; }
+:root[data-theme="dark"] .chipbtn.on { color: #0C121C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chipbtn.on { color: #0C121C; } }
+.verdict { font-size: 13px; font-weight: 700; padding: 6px 10px; border-radius: 8px; }
+.verdict.bad { background: var(--red-soft); color: var(--red); } .verdict.good { background: var(--teal-soft); color: var(--teal); }
+
+/* notebook prompt cards */
+.pc { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.pc-h { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.pc-h b { font-size: 13.5px; font-family: var(--f-head); }
+.where { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+.where.chat { background: var(--navy-soft); color: var(--navy); }
+.where.studio { background: var(--amber-soft); color: var(--amber); }
+.where.gem { background: var(--teal-soft); color: var(--teal); }
+.state { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.state.ready { color: var(--ok); font-weight: 700; }
+pre.prompt { margin: 0; background: var(--code-bg); color: var(--code-fg); font-family: var(--f-mono); font-size: 12.5px; line-height: 1.65; padding: 12px 14px; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+pre.prompt .ph { color: #F0B451; }
+.pc-f { display: flex; gap: 8px; padding: 8px 12px; align-items: center; flex-wrap: wrap; }
+.pc-f .why { font-size: 12.5px; color: var(--muted); flex: 1 1 200px; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 6px 12px; border-radius: 8px; font-size: 13.5px; font-weight: 500; }
+.btn:hover { border-color: var(--teal); }
+.btn.pri { background: var(--navy); border-color: var(--navy); color: var(--surface); font-weight: 700; }
+:root[data-theme="dark"] .btn.pri { color: #0C121C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.pri { color: #0C121C; } }
+.btn.warn { color: var(--red); border-color: var(--red); }
+.btn[disabled] { opacity: .5; cursor: default; }
+.memo { margin-top: 4px; }
+.memo textarea { min-height: 90px; background: var(--surface); }
+details.ref { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin-top: 12px; }
+details.ref summary { cursor: pointer; padding: 9px 12px; font-weight: 700; font-size: 13.5px; font-family: var(--f-head); }
+details.ref .in { padding: 0 12px 12px; font-size: 13.5px; }
+details.ref table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 12.5px; }
+details.ref td, details.ref th { border-top: 1px solid var(--line); padding: 5px 6px; text-align: left; vertical-align: top; }
+details.ref th { color: var(--muted); font-weight: 700; }
+
+.pager { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 999px; font-size: 13.5px; z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* setup steps */
+.setup { counter-reset: s; display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.setup li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.setup li::before { content: counter(s); width: 26px; height: 26px; border-radius: 50%; background: var(--teal); color: var(--surface); display: grid; place-items: center; font-weight: 700; font-size: 13px; font-family: var(--f-mono); }
+:root[data-theme="dark"] .setup li::before { color: #0C121C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .setup li::before { color: #0C121C; } }
+.setup b { display: block; }
+.setup span { color: var(--muted); font-size: 13.5px; }
+
+/* summary */
+.sum { display: grid; gap: 14px; }
+.sum section { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--surface); min-width: 0; }
+.sum h3 { font-size: 15px; color: var(--navy); margin-bottom: 6px; }
+.sum pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--f-body); font-size: 13.5px; }
+.empty-mark { color: var(--faint); }
+
+@media (max-width: 1100px) { .cols { grid-template-columns: minmax(0, 1fr); } .nb { position: static; max-height: none; } }
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  nav.steps { position: static; max-height: none; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; }
+  .grp { display: contents; }
+  .grp-h { display: none; }
+  .step-btn { flex: none; width: auto; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+  .step-btn.hot .lbl::after { display: none; }
+  .brand small { display: none; }
+}
+</style>
+
+<header class="top"><div class="top-in">
+  <div class="brand"><h1>백워드 설계 노트</h1><small>제미나이 노트북과 함께 쓰는 AI·디지털 기반 수업 설계 · 2026. 10. 31. 심화연수</small></div>
+  <div class="top-meta"><span class="pill team" id="teamPill">팀 미입력</span><span class="pill saved" id="savePill">이 브라우저에 자동 저장</span></div>
+</div></header>
+<div class="example-bar" id="exampleBar" hidden><div class="in">
+  <span><b>예시 설계안</b> 정보 「우리 동네 AI 탐정단」이 채워져 있습니다. 둘러본 뒤 비우고 우리 팀 설계를 시작하세요.</span>
+  <span id="clearArea"><button class="btn warn" id="clearBtn" type="button">비우고 내 설계 시작</button></span>
+</div></div>
+
+<div class="shell">
+  <nav class="steps" id="nav" aria-label="설계 단계"></nav>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+"use strict";
+// ---------------- reference data ----------------
+var PATTERNS = ["AI 결과 검증·반박", "역할 분담 협업", "브레인라이팅 → 범주화", "입장 투표 → 토론", "근거 기반 동료평가", "AI 페르소나 대화"];
+var ROLES = ["검증 대상", "반대 토론자", "질문하는 코치", "탐구 시뮬레이터", "자료 생성(교사용)", "AI 쓰지 않음"];
+var CRITERIA = [["목적 적합성", "성취기준 동사의 사고를 학생이 직접 하는가?"], ["상호작용 유발", "도구를 빼면 학생 간 대화도 사라지는가?"], ["학습 증거", "학생의 사고 과정이 기록으로 남는가?"], ["접근성·안전", "학생 계정·연령 기준, 개인정보, 학교 기기에서 되는가?"], ["운영 부담", "학생이 5분 안에 익히는가?"]];
+var TOOLMAP = [
+  ["패들렛", "역할 분담 · 동료평가", "모둠별 섹션 + 필수 입력란(근거·반론) + 댓글 켬, 좋아요 끔", "결과물 올리고 하트 누르기"],
+  ["캔바 화이트보드", "브레인라이팅 → 범주화", "개인 스티커 → 함께 묶고 이름 붙이기", "각자 꾸미기 경쟁"],
+  ["생성형 AI", "AI 결과 검증·반박", "AI 답에서 오류를 찾아 근거로 반박", "답을 받아 그대로 옮겨 적기"],
+  ["젬(Gem)", "AI 페르소나 대화", "반대 입장 인물을 지정, 모둠이 함께 논쟁", "개인별 정답 질문"],
+  ["제미나이 캔버스", "탐구 · 예측", "모둠이 변수를 바꿔 예측 → 결과 비교 토론", "교사 시연만 보기"],
+  ["제미나이 노트북", "근거 기반 토론", "교사가 소스 선별 → 학생이 출처를 들어 주장", "요약본 읽고 끝"],
+  ["멘티미터·띵커벨", "입장 투표 → 토론", "투표 결과로 반대 입장끼리 짝 짓기", "점수 경쟁 퀴즈로 끝"],
+  ["구글 폼·퀴즈", "형성평가 → 재구성", "결과로 모둠 재편성, 오답 토의", "점수 확인만"]];
+var WHERETO = [["w", "W", "방향·이유", "어디로 가는지, 왜 배우는지 학생이 아는가?"], ["h", "H", "흥미 유발·유지", "처음에 끌어들이고 끝까지 붙잡는 장치는?"], ["e1", "E", "경험·탐구", "핵심 아이디어를 직접 경험·탐구하는가?"], ["r", "R", "재사고·수정", "생각을 다시 보고 고치는 장면이 있는가?"], ["e2", "E", "자기평가", "학생이 스스로 평가하는 기회가 있는가?"], ["t", "T", "맞춤화", "학습자 차이에 맞춘 장치가 있는가?"], ["o", "O", "조직", "A → M → T 흐름으로 배열되었는가?"]];
+var GRASPS = [["g", "G", "목표 Goal", "학생의 목표는 (    ) 이다."], ["r", "R", "역할 Role", "학생은 (    ) 이다."], ["a", "A", "대상 Audience", "학생의 고객(대상)은 (    ) 이다."], ["s", "S", "상황 Situation", "학생이 마주한 상황은 (    ) 이다."], ["p", "P", "수행 Performance", "학생은 (  )을/를 하기 위해 (  )을/를 만든다."], ["st", "S", "기준 Standards", "결과물은 (    ) 에 따라 판단된다."]];
+var PHASES = ["도입", "전개①", "전개②", "정리"];
+var CARDF = [["phase", "국면·시간", "예) 전개② · 15분"], ["group", "그룹 구성", "몇 명이, 어떤 역할로"], ["setting", "도구 설정", "켜고 끌 기능, 입력란, 공유 범위"], ["task", "학생이 하는 일", "동사로: 검증한다, 반박한다, 묶는다…"], ["evidence", "남는 증거", "어떤 기록이 루브릭의 근거가 되나"], ["planb", "Plan B", "접속 실패·대화 실패 시"]];
+var PERSONAS = [["p1", "느린 학습자", "로그인에서 자주 막히고 글쓰기를 어려워하는"], ["p2", "소극적 학생", "모둠 대화에서 먼저 말하지 않고 친구 의견을 따라가는"], ["p3", "디지털 숙련자", "도구를 금방 익히고 쉬운 과제에 지루해하는"]];
+
+// ---------------- state ----------------
+function blank() {
+  return {
+    meta: { example: false, step: 0, persona: "p1" },
+    info: { subject: "", grade: "", unit: "", total: "", core: "", team: "" },
+    std: { code: "", verb: "", k: "", s: "", v: "" },
+    idea: { big: "", f: "", c: "", d: "", gate: [false, false, false] },
+    grasps: { g: "", r: "", a: "", s: "", p: "", st: "", scenario: "" },
+    rubric: [{ name: "", hi: "", mid: "", lo: "" }, { name: "", hi: "", mid: "", lo: "" }, { name: "협력적 상호작용", hi: "", mid: "", lo: "" }],
+    align: [{ verb: "", rub: "", act: "" }, { verb: "", rub: "", act: "" }, { verb: "", rub: "", act: "" }],
+    flow: [0, 1, 2, 3, 4, 5].map(function (i) { return { n: String(i + 1), code: "", q: "", act: "", pat: "", ev: "" }; }),
+    flowCore: -1,
+    where: { w: { act: "", pat: "" }, h: { act: "", pat: "" }, e1: { act: "", pat: "" }, r: { act: "", pat: "" }, e2: { act: "", pat: "" }, t: { act: "", pat: "" }, o: { act: "", pat: "" } },
+    tools: { pattern: "", roles: [], cands: [{ name: "", s: ["", "", "", "", ""] }, { name: "", s: ["", "", "", "", ""] }, { name: "", s: ["", "", "", "", ""] }], chosen: "" },
+    cards: [{ tool: "", phase: "", group: "", setting: "", task: "", evidence: "", planb: "" }, { tool: "", phase: "", group: "", setting: "", task: "", evidence: "", planb: "" }],
+    core: { goal: "", phases: PHASES.map(function (p) { return { time: "", act: "", inter: "", tool: "", ev: "" }; }), remove: "" },
+    d3: { p1: "", p2: "", p3: "", yes: "", and: "", pbTech: "", pbInter: "", final: "" },
+    memo: {}
+  };
+}
+function example() {
+  var s = blank();
+  s.meta.example = true;
+  s.info = { subject: "정보", grade: "중학교 1학년", unit: "Ⅲ. AI와 데이터", total: "5차시", core: "4차시", team: "AI 탐정단 (예시)" };
+  s.std = { code: "[9정03-01] 데이터의 속성과 유형을 이해하고, 실생활 문제 해결에서 데이터를 수집·분류·분석할 수 있다.", verb: "수집·분류·분석하다 → 직접 다뤄 보고 판단하는 수준", k: "데이터의 속성과 유형(정형·비정형)", s: "실생활 문제와 관련된 데이터를 직접 수집하고 목적에 맞게 분류·분석함", v: "데이터를 근거로 문제를 판단하려는 태도" };
+  s.idea = { big: "데이터의 질과 다양성이 AI의 공정성과 성능을 결정한다.", f: "데이터의 유형에는 어떤 것이 있는가?", c: "AI는 어떻게 '학습'하는가?", d: "우리는 AI를 언제, 어떻게 신뢰해야 하는가?", gate: [true, true, true] };
+  s.grasps = { g: "우리 동네 환경 문제를 AI와 데이터로 분석해 해결 방향을 제안한다", r: "데이터를 수집·분석하는 AI 탐정단 팀원", a: "학급 친구들과 담당 교사", s: "우리 학교 주변에서 실제로 발생하는 환경 문제(미세먼지, 쓰레기 투기 등)", p: "모둠 결론 1개 + 결론에 이르기까지 주고받은 반박 기록 + 발표 자료", st: "데이터 품질, 분석 타당성, 발표 명확성, 팀 협력 과정", scenario: "우리 학교 주변 환경 문제 하나를 골라 데이터를 직접 수집하고, AI 도구(티처블 머신)로 분석해 해결 방향을 제안하는 '우리 동네 AI 탐정단' 프로젝트를 수행한다." };
+  s.rubric = [
+    { name: "데이터 수집·분류", hi: "실생활 문제와 관련된 데이터를 다양한 방법으로 수집하고 유형에 맞게 정확히 분류함", mid: "문제와 관련된 데이터를 수집했으나 분류 기준 일부가 목적과 맞지 않음", lo: "수집한 데이터가 문제와 관련이 적고 분류 기준이 드러나지 않음" },
+    { name: "AI 분석 이해", hi: "AI 학습 결과를 해석하고 데이터 편향 가능성을 스스로 발견하여 개선 방향을 제안함", mid: "AI 분석 결과를 설명하나 결과와 데이터 편향의 관계는 설명하지 못함", lo: "AI 분석 결과를 그대로 옮겨 적고 해석을 덧붙이지 않음" },
+    { name: "협력적 상호작용", hi: "동료의 근거를 반박·보완하여 모둠의 결론을 발전시킴", mid: "동료의 의견에 근거를 덧붙이나 결론 수정으로 이어지지 않음", lo: "자신의 의견만 제시하고 동료의 근거에 반응하지 않음" }];
+  s.align = [
+    { verb: "수집·분류하다", rub: "데이터 수집·분류", act: "2~3차시 우리 동네 데이터 수집·분류" },
+    { verb: "분석하다", rub: "AI 분석 이해", act: "4차시 편향된 모델 결과 검증" },
+    { verb: "데이터를 근거로 판단하려는 태도", rub: "협력적 상호작용", act: "4·5차시 근거 댓글로 결론 수정" }];
+  s.flow = [
+    { n: "1", code: "A(K)", q: "F 데이터의 유형에는 어떤 것이 있는가?", act: "우리 주변 데이터 찾기, 유형 분류", pat: "브레인라이팅 → 범주화", ev: "형성 퀴즈" },
+    { n: "2~3", code: "A(S)", q: "C AI는 어떻게 '학습'하는가?", act: "데이터 수집, 티처블 머신 학습 실험", pat: "역할 분담 협업", ev: "수집 계획서, 실험 기록지" },
+    { n: "4", code: "M(Q)", q: "D 우리는 AI를 언제 신뢰해야 하는가?", act: "편향된 모델 결과 검증, 개선 방향 토론", pat: "AI 결과 검증·반박", ev: "관찰, 패들렛 기록" },
+    { n: "5", code: "T", q: "D AI가 인간의 판단을 대체할 수 있는가?", act: "AI 탐정단 발표, 근거 기반 상호 피드백", pat: "근거 기반 동료평가", ev: "루브릭, 동료·자기평가" },
+    { n: "", code: "", q: "", act: "", pat: "", ev: "" }, { n: "", code: "", q: "", act: "", pat: "", ev: "" }];
+  s.flowCore = 2;
+  s.where = {
+    w: { act: "1차시에 GRASPS 인포그래픽으로 수행과제·평가 기준 먼저 공개", pat: "–" },
+    h: { act: "'AI를 믿어도 될까?' 입장 투표로 시작", pat: "입장 투표 → 토론 · 패들렛 투표" },
+    e1: { act: "2~3차시 데이터 수집, 티처블 머신 학습 실험", pat: "역할 분담 협업" },
+    r: { act: "4차시 편향된 모델 결과를 모둠이 검증·반박 → 데이터 개선", pat: "AI 결과 검증·반박 · 티처블 머신" },
+    e2: { act: "5차시 루브릭 자기평가 + 근거 기반 동료 댓글", pat: "근거 기반 동료평가 · 패들렛" },
+    t: { act: "역할 카드 선택, 문장 틀 제공, 숙련자는 반론 담당", pat: "역할 분담 협업" },
+    o: { act: "A(K) → A(S) → M(Q) → T 순서", pat: "–" } };
+  s.tools = { pattern: "AI 결과 검증·반박", roles: ["검증 대상"], cands: [
+    { name: "티처블 머신", s: ["o", "o", "o", "t", "o"] }, { name: "패들렛", s: ["o", "o", "o", "o", "o"] }, { name: "이미지 생성 AI", s: ["x", "t", "x", "t", "o"] }],
+    chosen: "티처블 머신(전개①, 검증 대상)과 패들렛(전개②, 역할 분담). 오분류를 학생이 직접 찾고, 입력란·댓글 기록이 협력적 상호작용 루브릭의 증거가 됨. 이미지 생성 AI는 목적 적합성 ×로 제외." };
+  s.cards = [
+    { tool: "티처블 머신 · AI 결과 검증·반박", phase: "전개① · 15분", group: "3인 모둠 (테스트·기록·반박)", setting: "교사가 편향 데이터로 학습시킨 모델 링크를 공유, 학생은 테스트만", task: "오분류 사례를 찾고 → 원인 가설을 세우고 → 서로 반박", evidence: "오분류 캡처 + 원인 가설 기록", planb: "교사 화면 시연 + 캡처 카드 배부" },
+    { tool: "패들렛 · 역할 분담 협업", phase: "전개② · 15분", group: "4인 모둠 (자료·근거·반론·정리)", setting: "모둠별 섹션, 필수 입력란 [근거][반론][개선안], 좋아요 끔, 댓글 켬", task: "역할별로 입력하고 → 다른 역할 게시물에 반박·보완 댓글", evidence: "입력란·댓글 기록 → 협력적 상호작용 루브릭", planb: "A3 역할 카드 활동지" }];
+  s.core = { goal: "4차시 · 학생은 편향된 AI 모델의 결과를 검증하고, 데이터 개선 방향을 근거를 들어 제안할 수 있다.", phases: [
+    { time: "5분", act: "논쟁적 질문에 입장 투표", inter: "개인 입장 공개 → 반대 입장끼리 짝 → 근거 1개씩 교환", tool: "패들렛 투표", ev: "입장 분포 확인" },
+    { time: "15분", act: "편향된 분류 모델 결과 검증", inter: "모둠원 A가 오분류 사례 제시 → B·C가 원인(데이터)을 반박·보완", tool: "티처블 머신 · AI는 검증 대상", ev: "오분류 사례 기록(관찰)" },
+    { time: "15분", act: "데이터 개선 계획 수립", inter: "역할(자료·근거·반론·정리)별 입력 → 정리 담당이 모둠 결론 종합", tool: "패들렛 필수 입력란", ev: "역할별 입력 내용" },
+    { time: "10분", act: "다른 모둠 계획 비평", inter: "루브릭 기준으로 다른 모둠에 근거 댓글 → 받은 댓글로 결론 수정", tool: "패들렛 댓글 · 좋아요 끔", ev: "협력적 상호작용 루브릭" }], remove: "yes" };
+  s.d3 = { p1: "티처블 머신 링크 접속에서 멈출 수 있음 → 모둠별 기기 1대, 테스트 담당만 접속", p2: "반박 단계에서 말을 아낄 수 있음 → 반박 문장 틀 카드 제공", p3: "오분류를 금방 찾고 지루해짐 → 다른 모둠 모델의 반례 찾기 추가 과제", yes: "오분류 사례를 학생이 직접 찾게 해 반박할 재료가 생긴다", and: "정리 단계에서 댓글로 결론을 고친 흔적을 평가 증거로 남기면 루브릭 '상'과 이어진다", pbTech: "교사 화면 시연 + 캡처 카드 배부", pbInter: "'이 AI가 우리 학교 출입 관리에 쓰인다면?' 발문으로 입장 재투표", final: "정리 단계에 '결론 수정 기록' 칸 추가 (템플릿 슬라이드 13)" };
+  return s;
+}
+
+var KEY = "bwd-note-v1";
+var S;
+try { var raw = localStorage.getItem(KEY); S = raw ? merge(blank(), JSON.parse(raw)) : example(); } catch (e) { S = example(); }
+function merge(base, src) {
+  if (Array.isArray(base)) { if (!Array.isArray(src)) return base; return base.map(function (b, i) { return src[i] === undefined ? b : merge(b, src[i]); }).concat(src.slice(base.length)); }
+  if (base && typeof base === "object") { if (!src || typeof src !== "object") return base; var o = {}; Object.keys(base).forEach(function (k) { o[k] = k in src ? merge(base[k], src[k]) : base[k]; }); Object.keys(src).forEach(function (k) { if (!(k in o)) o[k] = src[k]; }); return o; }
+  return src === undefined || src === null ? base : src;
+}
+var saveT;
+function save() { clearTimeout(saveT); saveT = setTimeout(function () { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }, 300); }
+function get(path) { return path.split(".").reduce(function (o, k) { return o == null ? o : o[k]; }, S); }
+function set(path, v) { var ks = path.split("."); var o = S; for (var i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = v; }
+function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function v(x) { return (x && String(x).trim()) ? String(x).trim() : ""; }
+function or(x) { return v(x) || "⟨미작성⟩"; }
+
+// ---------------- steps ----------------
+var STEPS = [
+  { id: "ready", grp: "준비", no: "0", name: "노트북 준비 · 기본 정보", slide: "템플릿 1", chip: ["준비", ""] },
+  { id: "std", grp: "1단계 바라는 결과", no: "1", name: "성취기준 분석", slide: "템플릿 2", chip: ["1단계 · 바라는 결과", ""] },
+  { id: "idea", grp: "1단계 바라는 결과", no: "2", name: "핵심 아이디어 · 탐구질문", slide: "템플릿 3", chip: ["1단계 · 바라는 결과", ""] },
+  { id: "grasps", grp: "2단계 수용 가능한 증거", no: "3", name: "GRASPS 수행과제", slide: "템플릿 4·5", chip: ["2단계 · 수용 가능한 증거", "teal"] },
+  { id: "rubric", grp: "2단계 수용 가능한 증거", no: "4", name: "분석적 루브릭", slide: "템플릿 6", chip: ["2단계 · 수용 가능한 증거", "teal"] },
+  { id: "align", grp: "2단계 수용 가능한 증거", no: "5", name: "정합성 점검", slide: "템플릿 7", chip: ["2단계 · 수용 가능한 증거", "teal"] },
+  { id: "flow", grp: "3단계 학습경험 계획", no: "6", name: "차시 흐름표", slide: "템플릿 8", chip: ["3단계 · 학습경험 계획", ""] },
+  { id: "where", grp: "3단계 학습경험 계획", no: "7", name: "WHERETO 점검", slide: "템플릿 9·10", chip: ["3단계 · 학습경험 계획", ""] },
+  { id: "tools", grp: "도구 선택과 활용", no: "8", name: "도구 선택", slide: "템플릿 11", chip: ["도구 선택과 활용", "red"], hot: true },
+  { id: "cards", grp: "도구 선택과 활용", no: "9", name: "도구 활용 카드", slide: "템플릿 12", chip: ["도구 선택과 활용", "red"], hot: true },
+  { id: "core", grp: "도구 선택과 활용", no: "10", name: "핵심 차시 상호작용", slide: "템플릿 13", chip: ["도구 선택과 활용", "red"] },
+  { id: "d3", grp: "D3 성찰", no: "11", name: "시뮬레이션 · 비평 · Plan B", slide: "템플릿 14", chip: ["D3 · 성찰과 개선", "amber"] },
+  { id: "sum", grp: "정리", no: "12", name: "설계안 정리 · 내보내기", slide: "구글 슬라이드로", chip: ["정리", "amber"] }];
+var GRP_TIME = { "1단계 바라는 결과": "30분", "2단계 수용 가능한 증거": "30분", "3단계 학습경험 계획": "15분", "도구 선택과 활용": "45분", "D3 성찰": "20분" };
+
+// completion: required paths per step
+function filled(paths) { var n = 0; paths.forEach(function (p) { if (v(get(p))) n++; }); return paths.length ? n / paths.length : 0; }
+function progress(id) {
+  switch (id) {
+    case "ready": return filled(["info.subject", "info.grade", "info.unit", "info.team"]);
+    case "std": return filled(["std.code", "std.verb", "std.k", "std.s", "std.v"]);
+    case "idea": return (filled(["idea.big", "idea.f", "idea.c", "idea.d"]) * 4 + S.idea.gate.filter(Boolean).length) / 7;
+    case "grasps": return filled(["grasps.g", "grasps.r", "grasps.a", "grasps.s", "grasps.p", "grasps.st"]);
+    case "rubric": var ps = []; S.rubric.forEach(function (r, i) { ["name", "hi", "mid", "lo"].forEach(function (k) { ps.push("rubric." + i + "." + k); }); }); return filled(ps);
+    case "align": var pa = []; S.align.forEach(function (r, i) { ["verb", "rub", "act"].forEach(function (k) { pa.push("align." + i + "." + k); }); }); return filled(pa);
+    case "flow": var rows = S.flow.filter(function (r) { return v(r.act); }).length; return Math.min(1, (rows / 4) * 0.8 + (S.flowCore >= 0 ? 0.2 : 0));
+    case "where": return filled(WHERETO.map(function (w) { return "where." + w[0] + ".act"; }));
+    case "tools": var sc = 0; S.tools.cands.forEach(function (c) { if (v(c.name) && c.s.every(Boolean)) sc++; }); return (filled(["tools.pattern", "tools.chosen"]) * 2 + Math.min(sc, 2)) / 4;
+    case "cards": var pc = []; CARDF.forEach(function (f) { pc.push("cards.0." + f[0]); }); pc.push("cards.0.tool"); return filled(pc);
+    case "core": var pp = ["core.goal"]; S.core.phases.forEach(function (p, i) { pp.push("core.phases." + i + ".act", "core.phases." + i + ".inter"); }); return (filled(pp) * 9 + (S.core.remove ? 1 : 0)) / 10;
+    case "d3": return filled(["d3.p1", "d3.p2", "d3.p3", "d3.yes", "d3.and", "d3.pbTech", "d3.pbInter", "d3.final"]);
+    default: return 0;
+  }
+}
+
+// ---------------- UI helpers ----------------
+function ta(path, ph, rows) { return '<textarea id="f-' + path.replace(/\./g, "-") + '" data-p="' + path + '" rows="' + (rows || 2) + '" placeholder="' + esc(ph || "") + '">' + esc(get(path)) + "</textarea>"; }
+function inp(path, ph) { return '<input type="text" id="f-' + path.replace(/\./g, "-") + '" data-p="' + path + '" value="' + esc(get(path)) + '" placeholder="' + esc(ph || "") + '">'; }
+function field(label, inner, em) { return '<label class="fl"><span>' + label + (em ? "<em>" + em + "</em>" : "") + "</span>" + inner + "</label>"; }
+function card(kind, title, text, needs, why, noCopy) {
+  var ready = needs.every(function (p) { return v(get(p)); });
+  var where = { chat: ["chat", "노트북 채팅"], studio: ["studio", "노트북 스튜디오"], gem: ["gem", "제미나이 일반 채팅"] }[kind];
+  var html = esc(text).replace(/⟨미작성⟩/g, '<span class="ph">⟨미작성⟩</span>');
+  return '<div class="pc"><div class="pc-h"><span class="where ' + where[0] + '">' + where[1] + "</span><b>" + esc(title) + '</b><span class="state' + (ready ? " ready" : "") + '">' + (ready ? "준비됨" : "왼쪽 칸을 먼저 채우세요") + '</span></div><pre class="prompt">' + html + '</pre><div class="pc-f"><span class="why">' + esc(why || "") + '</span>' + (noCopy ? "" : '<button class="btn pri" type="button" data-copy="' + encodeURIComponent(text) + '">복사</button>') + "</div></div>";
+}
+function memo(id) { return '<div class="memo">' + field("노트북 답변 메모", ta("memo." + id, "노트북이 던진 질문·지적과 우리 팀이 고친 내용을 짧게 적어 두세요", 3), "설계안 정리에 함께 담깁니다") + "</div>"; }
+function nbPanel(id, cards, extra) {
+  if (S.memo[id] === undefined) S.memo[id] = "";
+  return '<aside class="panel nb"><div class="panel-h">제미나이 노트북<span class="tag">내 글이 프롬프트에 자동으로 들어갑니다</span></div>' + cards.join("") + memo(id) + (extra || "") + "</aside>";
+}
+function head(st, desc) {
+  return '<div class="step-head"><span class="chip ' + st.chip[1] + '">' + st.chip[0] + "</span>" + (GRP_TIME[st.grp] ? '<span class="slide">' + st.grp + " · " + GRP_TIME[st.grp] + "</span>" : "") + '<span class="slide">' + st.slide + "</span><h2>" + esc(st.name) + "</h2><p>" + desc + "</p></div>";
+}
+
+// ---------------- reference text (notebook source) ----------------
+function refText() {
+  var t = "[연수 핵심 자료] AI·디지털 기반 교수·학습 및 평가 설계 (2026. 10. 31.)\n\n";
+  t += "■ 핵심 아이디어 통과 기준\n① 일반화된 언어(특정 사실·사례가 아닌 원리) ② 시간·공간을 넘어 전이 가능 ③ 성취기준 동사 수준 반영\n\n";
+  t += "■ 탐구질문\nF 사실적 질문(답이 정해짐) / C 개념적 질문(사례를 넘어 일반화) / D 논쟁적 질문(입장이 갈림)\n\n";
+  t += "■ 루브릭 작성 원칙\n① 질적으로(횟수·개수가 아닌 사고의 질) ② '상'부터(이상적 수행을 먼저) ③ 독립적으로('위 조건 미충족' 같은 상대 서술 금지)\n협력적 상호작용은 참여 횟수나 좋아요 수가 아니라 동료의 근거를 다루는 방식으로 평가함\n\n";
+  t += "■ 학습코드\nA(K) 지식 습득 · A(S) 기능 습득 · M(Q) 의미 탐구(질문) · M(U) 의미 이해 · T 전이 수행\n\n";
+  t += "■ WHERETO\n" + WHERETO.map(function (w) { return w[1] + " " + w[2] + ": " + w[3]; }).join("\n") + "\n\n";
+  t += "■ 상호작용 패턴 6가지\n" + PATTERNS.join(" / ") + "\n도구 빼기 테스트: 이 도구를 빼면 학생끼리 나누던 대화도 사라지는가? (예 → 상호작용 도구, 아니오 → 장식)\n\n";
+  t += "■ 도구 선택 기준 5가지 (하나라도 ×이면 다른 도구)\n" + CRITERIA.map(function (c, i) { return (i + 1) + ". " + c[0] + ": " + c[1]; }).join("\n") + "\n\n";
+  t += "■ AI에게 맡길 역할: 검증 대상, 반대 토론자, 질문하는 코치, 탐구 시뮬레이터, 자료 생성(교사용)\n■ AI에게 맡기지 않을 역할: 정답 제공자, 결과물 대행자, 평가자\n\n";
+  t += "■ 도구 지도 (도구 | 상호작용 패턴 | 상호작용을 일으키는 설정 | 장식이 되는 사용)\n" + TOOLMAP.map(function (r) { return r.join(" | "); }).join("\n") + "\n\n";
+  t += "■ 학생과 생성형 AI를 쓸 때 지킬 것\n연령·계정 확인 / 개인정보 입력 금지 / 교사가 먼저 실행 / AI 답에 근거·출처 붙이기 / 산출물에 AI 활용 범위 표시";
+  return t;
+}
+
+// ---------------- design text (export) ----------------
+function L(label, val) { return "- " + label + ": " + (v(val) || "(미작성)"); }
+function sec(id) {
+  var t = "";
+  switch (id) {
+    case "ready": t = [L("교과", S.info.subject), L("학년", S.info.grade), L("단원", S.info.unit), L("총 차시", S.info.total), L("핵심 차시", S.info.core), L("팀", S.info.team)].join("\n"); break;
+    case "std": t = [L("성취기준", S.std.code), L("핵심 동사·도달 수준", S.std.verb), L("지식·이해", S.std.k), L("과정·기능", S.std.s), L("가치·태도", S.std.v)].join("\n"); break;
+    case "idea": t = [L("핵심 아이디어", S.idea.big), L("F 사실적 질문", S.idea.f), L("C 개념적 질문", S.idea.c), L("D 논쟁적 질문", S.idea.d), "- 통과 게이트: " + ["일반화", "전이", "동사 수준"].map(function (g, i) { return g + (S.idea.gate[i] ? " ✓" : " ☐"); }).join(", ")].join("\n"); break;
+    case "grasps": t = GRASPS.map(function (g) { return L(g[1] + " " + g[2], S.grasps[g[0]]); }).concat([L("수업 맥락 시나리오", S.grasps.scenario)]).join("\n"); break;
+    case "rubric": t = S.rubric.map(function (r, i) { return "- 평가요소 " + (i + 1) + ") " + (v(r.name) || "(미작성)") + "\n  · 상: " + (v(r.hi) || "(미작성)") + "\n  · 중: " + (v(r.mid) || "(미작성)") + "\n  · 하: " + (v(r.lo) || "(미작성)"); }).join("\n"); break;
+    case "align": t = S.align.map(function (r) { return "- " + (v(r.verb) || "(미작성)") + " → " + (v(r.rub) || "(미작성)") + " → " + (v(r.act) || "(미작성)"); }).join("\n"); break;
+    case "flow": t = S.flow.filter(function (r) { return v(r.act) || v(r.q); }).map(function (r, i) { return "- " + (S.flowCore === S.flow.indexOf(r) ? "★ " : "") + (v(r.n) || "?") + "차시 | " + (v(r.code) || "-") + " | " + (v(r.q) || "-") + " | " + (v(r.act) || "-") + " | 상호작용: " + (v(r.pat) || "-") + " | 평가: " + (v(r.ev) || "-"); }).join("\n") || "(미작성)"; break;
+    case "where": t = WHERETO.map(function (w) { var x = S.where[w[0]]; return "- " + w[1] + " " + w[2] + ": " + (v(x.act) || "(미작성)") + (v(x.pat) ? " [" + x.pat + "]" : ""); }).join("\n"); break;
+    case "tools": t = [L("핵심 차시 상호작용 패턴", S.tools.pattern), "- AI에게 맡길 역할: " + (S.tools.roles.length ? S.tools.roles.join(", ") : "(미선택)")].concat(S.tools.cands.filter(function (c) { return v(c.name); }).map(function (c) { return "- 후보 " + c.name + ": " + CRITERIA.map(function (k, i) { return k[0] + " " + ({ o: "○", t: "△", x: "×" }[c.s[i]] || "-"); }).join(", "); })).concat([L("선택한 도구와 이유", S.tools.chosen)]).join("\n"); break;
+    case "cards": t = S.cards.filter(function (c) { return v(c.tool) || v(c.setting); }).map(function (c, i) { return "- 도구 " + (i + 1) + ") " + (v(c.tool) || "(미작성)") + "\n" + CARDF.map(function (f) { return "  · " + f[1] + ": " + (v(c[f[0]]) || "(미작성)"); }).join("\n"); }).join("\n") || "(미작성)"; break;
+    case "core": t = [L("학습목표", S.core.goal)].concat(S.core.phases.map(function (p, i) { return "- " + PHASES[i] + (v(p.time) ? "(" + p.time + ")" : "") + " | 활동: " + (v(p.act) || "-") + " | 상호작용: " + (v(p.inter) || "-") + " | 도구·AI: " + (v(p.tool) || "-") + " | 평가: " + (v(p.ev) || "-"); })).concat(["- 도구 빼기 테스트: " + ({ yes: "예 (상호작용 유발)", no: "아니오 (재설계 필요)" }[S.core.remove] || "(미판정)")]).join("\n"); break;
+    case "d3": t = [L("느린 학습자", S.d3.p1), L("소극적 학생", S.d3.p2), L("디지털 숙련자", S.d3.p3), L("Yes · 살릴 점", S.d3.yes), L("And · 더하면 좋을 점", S.d3.and), L("Plan B · 기술 장애", S.d3.pbTech), L("Plan B · 상호작용 실패", S.d3.pbInter), L("최종 수정 사항", S.d3.final)].join("\n"); break;
+  }
+  return t;
+}
+function designText() {
+  var out = "[백워드 설계안] " + (v(S.info.subject) || "교과") + " · " + (v(S.info.unit) || "단원") + " · " + (v(S.info.team) || "팀") + "\n";
+  STEPS.slice(0, 12).forEach(function (st) {
+    out += "\n■ " + st.name + " (" + st.slide + ")\n" + sec(st.id) + "\n";
+    var m = v(S.memo[st.id]); if (m) out += "- 노트북 답변 메모: " + m + "\n";
+  });
+  return out;
+}
+
+// ---------------- step renderers ----------------
+var R = {};
+R.ready = function (st) {
+  var left = '<section class="panel f">' +
+    '<div class="sub-h">노트북 만들기 (5분)</div><ol class="setup">' +
+    "<li><div><b>새 노트북 만들기</b><span>제미나이 노트북에서 팀 이름으로 노트북을 만듭니다.</span></div></li>" +
+    "<li><div><b>소스 ① 교과 교육과정 문서</b><span>2022 개정 교과 교육과정 PDF를 올립니다. 성취기준 해설과 '적용 시 고려 사항'을 노트북이 인용할 수 있게 됩니다.</span></div></li>" +
+    "<li><div><b>소스 ② 단원 자료</b><span>교과서·지도서의 해당 단원(PDF 또는 사진)을 올립니다. 없으면 건너뜁니다.</span></div></li>" +
+    "<li><div><b>소스 ③ 연수 핵심 자료</b><span>오른쪽 '연수 핵심 자료'를 복사해 소스 추가 → 복사된 텍스트로 붙여 넣습니다. 도구 지도와 선택 기준을 노트북이 참고합니다.</span></div></li>" +
+    "<li><div><b>마지막 단계에서 소스 ④</b><span>설계를 마치면 '설계안 정리'의 전체 텍스트를 소스로 추가해 인포그래픽·과정안을 만듭니다.</span></div></li></ol>" +
+    '<div class="sub-h">기본 정보</div>' +
+    '<div class="row">' + field("교과", inp("info.subject", "예) 정보")) + field("학년", inp("info.grade", "예) 중학교 1학년")) + "</div>" +
+    field("단원명", inp("info.unit", "예) Ⅲ. AI와 데이터")) +
+    '<div class="row">' + field("총 차시", inp("info.total", "4~6차시 권장")) + field("핵심 차시", inp("info.core", "상호작용이 가장 중요한 차시")) + "</div>" +
+    field("팀 이름 · 팀원", inp("info.team", "예) 정보_AI탐정단 (김○○, 이○○)")) +
+    '<div class="box-amber"><h4>오늘의 원칙</h4><p class="hint">교사가 먼저 쓰고, AI는 나중에 비평합니다. 각 단계의 노트북 프롬프트는 왼쪽 칸을 채워야 완성되며, 노트북은 고쳐 주지 않고 질문을 던지도록 짜여 있습니다.</p></div></section>';
+  var right = nbPanel("ready", [card("chat", "연수 핵심 자료 (소스로 추가)", refText(), [], "소스 추가 → 복사된 텍스트에 붙여 넣기. 채팅에 넣는 프롬프트가 아닙니다.")]);
+  return head(st, "노트북을 만들고 소스 3개를 넣은 뒤, 우리 팀의 설계 범위를 정합니다. 단원은 4~6차시, 상세 설계는 핵심 차시 1개입니다.") + '<div class="cols">' + left + right + "</div>";
+};
+R.std = function (st) {
+  var left = '<section class="panel f">' + field("성취기준 (코드 + 원문)", ta("std.code", "예) [9정03-01] 데이터의 속성과 유형을 이해하고, 실생활 문제 해결에서 데이터를 수집·분류·분석할 수 있다.", 3)) +
+    field("핵심 동사 → 도달 수준", ta("std.verb", "예) 수집·분류·분석하다 → 직접 다뤄 보고 판단하는 수준", 2), "2단계 평가와 3단계 활동의 기준") +
+    '<div class="row">' + field("지식·이해", ta("std.k", "학생이 알아야 할 것", 4)) + field("과정·기능", ta("std.s", "학생이 할 수 있어야 할 것 (동사를 살려서)", 4)) + field("가치·태도", ta("std.v", "학생이 지녀야 할 것", 4)) + "</div></section>";
+  var p = "소스의 교육과정 문서에서 아래 성취기준의 해설과 '성취기준 적용 시 고려 사항'을 찾아 인용해 줘.\n그다음 우리 팀이 쓴 3범주 분석과 비교해서, 빠졌거나 성취기준 동사 수준보다 낮게 쓴 부분을 지적해 줘.\n고쳐 쓰지는 말고, 우리가 스스로 고칠 수 있게 질문 3개로 알려 줘.\n\n- 성취기준: " + or(S.std.code) + "\n- 핵심 동사: " + or(S.std.verb) + "\n- 지식·이해: " + or(S.std.k) + "\n- 과정·기능: " + or(S.std.s) + "\n- 가치·태도: " + or(S.std.v);
+  return head(st, "성취기준의 동사가 설계 전체의 기준입니다. 동사를 찾고, 2022 개정 3범주로 풀어 씁니다.") + '<div class="cols">' + left + nbPanel("std", [card("chat", "성취기준 해설과 대조하기", p, ["std.code", "std.k", "std.s"], "교육과정 문서를 소스로 넣었을 때 인용이 붙습니다.")]) + "</div>";
+};
+R.idea = function (st) {
+  var g = ["일반화된 언어인가? (특정 사실·사례가 아닌 원리)", "다른 상황에 전이되는가? (시간·공간을 넘어 적용)", "성취기준 동사 수준을 담았나? ('안다'에 머물지 않음)"];
+  var left = '<section class="panel f">' + field("핵심 아이디어 (Big Idea)", ta("idea.big", "예) 데이터의 질과 다양성이 AI의 공정성과 성능을 결정한다.", 2)) +
+    field("F 사실적 질문", ta("idea.f", "답이 정해져 있는 질문", 2)) + field("C 개념적 질문", ta("idea.c", "사례를 넘어 일반화하는 질문", 2)) + field("D 논쟁적 질문", ta("idea.d", "입장이 갈리는 질문", 2)) +
+    '<div class="box-amber"><h4>통과 게이트 · 3개 모두 체크해야 2단계로</h4><div class="checks">' + g.map(function (x, i) { return '<label><input type="checkbox" id="gate' + i + '" data-gate="' + i + '"' + (S.idea.gate[i] ? " checked" : "") + "> " + x + "</label>"; }).join("") + "</div></div>" +
+    '<p class="hint">진행: 직접 작성 15분 → 노트북 비평 10분 → 수정 5분</p></section>';
+  var p = "아래 핵심 아이디어가 ① 일반화된 언어인가 ② 시공간을 넘어 전이 가능한가 ③ 성취기준의 동사 수준을 반영하는가를 판정해 줘.\n소스의 교육과정에 제시된 해당 영역의 핵심 아이디어와 어떤 관계인지도 인용해서 알려 줘.\n탐구질문 F·C·D가 각각 사실적·개념적·논쟁적 질문의 조건을 갖췄는지 한 줄씩 판정해 줘.\n고쳐 쓰지는 말고, 우리가 스스로 고칠 수 있도록 질문만 3개 던져 줘.\n\n- 성취기준: " + or(S.std.code) + "\n- 핵심 아이디어: " + or(S.idea.big) + "\n- F 사실적 질문: " + or(S.idea.f) + "\n- C 개념적 질문: " + or(S.idea.c) + "\n- D 논쟁적 질문: " + or(S.idea.d);
+  return head(st, "핵심 아이디어는 단원이 끝난 뒤에도 남는 원리입니다. 탐구질문은 사실 → 개념 → 논쟁 순으로 깊어집니다.") + '<div class="cols">' + left + nbPanel("idea", [card("chat", "AI 비평: 고쳐 주지 말고 질문하기", p, ["idea.big", "idea.f", "idea.c", "idea.d"], "'질문만 3개'라는 제약이 교사의 설계 주도성을 지킵니다.")]) + "</div>";
+};
+R.grasps = function (st) {
+  var left = '<section class="panel f"><div class="row">' + GRASPS.map(function (g) { return field(g[1] + " · " + g[2], ta("grasps." + g[0], g[3], 2), (g[0] === "g" || g[0] === "p") ? "필수" : ""); }).join("") + "</div>" +
+    field("수업 맥락 시나리오 (2~3문장)", ta("grasps.scenario", "학생이 어떤 상황에서 무엇을 하게 되는지", 3)) +
+    '<div class="box-soft"><h4>상호작용 관점</h4><p class="hint">P(수행)를 \'팀이 함께 만들어야만 완성되는 산출물\'로 설계하면, 학생 사이의 대화 자체가 평가의 증거가 됩니다. 예) 모둠 결론 1개 + 결론에 이르기까지 주고받은 반박 기록</p></div></section>';
+  var chk = "아래 GRASPS 수행과제를 점검해 줘.\n① 학생이 실제 세계의 맥락에서 수행하는가 ② 팀이 함께 만들어야만 완성되는 산출물인가 ③ 성취기준의 동사(" + or(S.std.verb) + ")를 실제로 수행하게 하는가를 판정하고, 보완할 점을 질문 2개로 알려 줘.\n\n" + GRASPS.map(function (g) { return "- " + g[1] + " " + g[2] + ": " + or(S.grasps[g[0]]); }).join("\n") + "\n- 시나리오: " + or(S.grasps.scenario);
+  var info = "아래 내용만 사용해서 " + (v(S.info.grade) || "중학생") + " 학생에게 수행과제를 안내하는 인포그래픽을 만들어 줘.\nG·R·A·S·P·S 6요소를 아이콘과 함께 한 칸씩 배치하고, '너는 ~이다'처럼 학생에게 말하는 2인칭 문장으로 바꿔 줘.\n목표(G)와 수행(P)을 가장 크게 강조하고, 하단 '이렇게 평가해요' 칸에 기준(S)을 넣어 줘. 아래 내용에 없는 정보는 추가하지 마.\n\n[수행과제]\n" + GRASPS.map(function (g) { return "- " + g[2].split(" ")[0] + "(" + g[1] + "): " + or(S.grasps[g[0]]); }).join("\n");
+  return head(st, "학생이 단순 '제출'이 아니라 실제 맥락 속 수행자가 되도록 6요소를 채웁니다. 다 쓰면 인포그래픽을 요청해 두고 루브릭으로 넘어갑니다.") + '<div class="cols">' + left +
+    nbPanel("grasps", [card("chat", "수행과제 실제성 점검", chk, ["grasps.g", "grasps.p"], ""), card("studio", "GRASPS 인포그래픽 (학생용 안내문)", info, ["grasps.g", "grasps.r", "grasps.p", "grasps.st"], "스튜디오 → 인포그래픽 → 맞춤설정에 붙여넣기 · 언어 한국어 · 방향 가로. 생성되는 동안 루브릭 작성 → 템플릿 5에 삽입")]) + "</div>";
+};
+R.rubric = function (st) {
+  var rows = S.rubric.map(function (r, i) {
+    return "<tr><td>" + ta("rubric." + i + ".name", i === 2 ? "협력적 상호작용" : "평가요소 " + (i + 1), 2) + "</td><td>" + ta("rubric." + i + ".hi", "상", 3) + "</td><td>" + ta("rubric." + i + ".mid", "중", 3) + "</td><td>" + ta("rubric." + i + ".lo", "하", 3) + "</td></tr>";
+  }).join("");
+  var left = '<section class="panel f"><div class="tw"><table class="t"><thead><tr><th style="width:20%">평가요소</th><th>상</th><th>중</th><th>하</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+    '<div class="row"><div class="box-amber"><h4>① 질적으로</h4><p class="hint">횟수·개수가 아닌 사고의 질</p></div><div class="box-amber"><h4>② \'상\'부터</h4><p class="hint">이상적 수행을 먼저 그린다</p></div><div class="box-amber"><h4>③ 독립적으로</h4><p class="hint">\'위 조건 미충족\' 같은 상대 서술 금지</p></div></div>' +
+    '<div class="box-red"><h4>피할 기준</h4><p class="hint">패들렛 좋아요 수 · 댓글·발언 횟수 · \'모둠 활동에 적극적으로 참여함\'</p></div></section>';
+  var table = S.rubric.map(function (r, i) { return "평가요소 " + (i + 1) + ") " + or(r.name) + "\n  상: " + or(r.hi) + "\n  중: " + or(r.mid) + "\n  하: " + or(r.lo); }).join("\n");
+  var draft = "아래 성취기준과 GRASPS 수행과제에 맞는 분석적 루브릭을 평가요소 3개 × 상·중·하로 만들어 줘.\n평가요소 중 하나는 '협력적 상호작용'으로 하고, 참여 횟수나 '좋아요' 수가 아니라 동료의 근거를 어떻게 다루는지로 서술해 줘.\n각 수준은 다른 수준을 참조하지 않고 독립적으로 써 줘.\n\n- 성취기준: " + or(S.std.code) + "\n- 목표(G): " + or(S.grasps.g) + "\n- 수행(P): " + or(S.grasps.p) + "\n- 기준(S): " + or(S.grasps.st);
+  var review = "아래 루브릭에서 ① 양적 서술(횟수·개수) ② 상대적 서술('위 조건 미충족', '대체로' 등) ③ 태도만 보는 서술('적극적으로 참여함' 등)을 찾아 그대로 인용해 줘.\n각 문장을 질적으로 고칠 방향을 질문으로 알려 주고, 직접 고쳐 쓰지는 마.\n\n" + table;
+  return head(st, "평가요소 3개 × 3수준. AI 초안을 받았다면 양적·상대적 서술을 찾아 교사가 고쳐 씁니다. 셋째 요소는 협력적 상호작용입니다.") + '<div class="cols">' + left +
+    nbPanel("rubric", [card("chat", "루브릭 검토 (교사가 쓴 뒤)", review, ["rubric.0.hi", "rubric.2.hi"], "먼저 직접 쓰고 검토받는 것을 권장합니다."), card("chat", "루브릭 초안 (막힐 때만)", draft, ["std.code", "grasps.g", "grasps.p"], "초안을 그대로 옮기지 말고 3원칙으로 고쳐 씁니다.")]) + "</div>";
+};
+R.align = function (st) {
+  var rows = S.align.map(function (r, i) { return "<tr><td>" + ta("align." + i + ".verb", "성취기준 동사", 2) + "</td><td>" + ta("align." + i + ".rub", "루브릭 평가요소", 2) + "</td><td>" + ta("align." + i + ".act", "수업 활동 (몇 차시?)", 2) + "</td></tr>"; }).join("");
+  var left = '<section class="panel f"><div class="tw"><table class="t"><thead><tr><th>성취기준 동사</th><th>→ 루브릭 평가요소</th><th>→ 수업 활동 (몇 차시?)</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+    '<div class="row"><div class="verdict good">이어짐 예) 수집·분류하다 → 데이터 수집·분류 → 2차시 데이터 수집</div><div class="verdict bad">끊김 예) 추론한다 → 도구를 적극 활용하는가 → AI 이미지로 인포그래픽 제작</div></div>' +
+    '<div class="box-amber"><h4>점검 질문</h4><p class="hint">활동은 있는데 평가에 없는 것은? · 평가는 하는데 연습할 활동이 없는 것은? · AI·디지털 도구가 동사의 사고(추론·분석·판단)를 대신하는 곳은?</p></div></section>';
+  var p = "아래 '성취기준 동사 → 루브릭 평가요소 → 수업 활동' 연결표에서 끊기는 줄을 찾아 줘.\n① 활동은 있는데 평가에 없는 것 ② 평가는 하는데 연습할 활동이 없는 것 ③ 도구가 동사의 사고를 대신하는 곳을 각각 지적하고, 고칠 방향은 질문으로만 알려 줘.\n\n- 성취기준: " + or(S.std.code) + "\n" + S.align.map(function (r, i) { return "- " + (i + 1) + "줄: " + or(r.verb) + " → " + or(r.rub) + " → " + or(r.act); }).join("\n") + "\n- 루브릭 평가요소: " + S.rubric.map(function (r) { return or(r.name); }).join(", ");
+  return head(st, "같은 줄의 세 칸이 서로를 가리켜야 합니다. 끊기는 줄을 스스로 찾는 것이 목적입니다.") + '<div class="cols">' + left + nbPanel("align", [card("chat", "정합성 점검", p, ["align.0.verb", "align.0.rub", "align.0.act"], "")]) + "</div>";
+};
+R.flow = function (st) {
+  var rows = S.flow.map(function (r, i) {
+    return '<tr class="' + (S.flowCore === i ? "core" : "") + '"><td style="text-align:center;vertical-align:middle"><button type="button" class="star' + (S.flowCore === i ? " on" : "") + '" data-core="' + i + '" aria-label="핵심 차시로 표시">★</button></td><td>' + inp("flow." + i + ".n", "차시") + "</td><td>" + inp("flow." + i + ".code", "A(K)") + "</td><td>" + ta("flow." + i + ".q", "F·C·D 질문", 2) + "</td><td>" + ta("flow." + i + ".act", "학습 활동", 2) + '</td><td><select id="f-flow-' + i + '-pat" data-p="flow.' + i + '.pat"><option value="">–</option>' + PATTERNS.map(function (p) { return "<option" + (r.pat === p ? " selected" : "") + ">" + p + "</option>"; }).join("") + "</select></td><td>" + ta("flow." + i + ".ev", "평가·산출물", 2) + "</td></tr>";
+  }).join("");
+  var left = '<section class="panel f"><div class="tw"><table class="t"><thead><tr><th>★</th><th style="width:60px">차시</th><th style="width:72px">코드</th><th>탐구질문</th><th>학습 활동</th><th style="width:150px">상호작용 패턴</th><th>평가·산출물</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+    '<p class="hint">학습코드: A(K) 지식 습득 · A(S) 기능 습득 · M(Q) 의미 탐구 · M(U) 의미 이해 · T 전이 수행. 상호작용이 가장 중요한 차시에 ★를 누르세요. 상호작용 패턴 칸에는 도구 이름이 아니라 패턴을 고릅니다.</p></section>';
+  var p = "아래 단원 차시 흐름을 점검해 줘.\n① 학습코드가 A → M → T 순서로 자연스럽게 이어지는가 ② 탐구질문 F·C·D가 단원 안에서 알맞게 배치되었는가 ③ 학생 상호작용 패턴이 의미 탐구(M)와 전이(T) 차시에 놓였는가를 판정하고, 약한 부분을 질문으로 알려 줘.\n\n- 핵심 아이디어: " + or(S.idea.big) + "\n" + (S.flow.filter(function (r) { return v(r.act); }).map(function (r) { return "- " + r.n + "차시 | " + (v(r.code) || "-") + " | " + (v(r.q) || "-") + " | " + r.act + " | 상호작용: " + (v(r.pat) || "-"); }).join("\n") || "- ⟨미작성⟩");
+  return head(st, "4~6차시로 단원의 흐름을 잡습니다. 모든 차시에 상호작용을 넣을 필요는 없고, M과 T 차시에 집중합니다.") + '<div class="cols">' + left + nbPanel("flow", [card("chat", "차시 흐름 점검", p, ["flow.0.act", "flow.1.act"], "")]) + "</div>";
+};
+R.where = function (st) {
+  var rows = WHERETO.map(function (w) { return '<tr><td class="lab">' + w[1] + " " + w[2] + '</td><td class="q">' + w[3] + "</td><td>" + ta("where." + w[0] + ".act", "활동 · 차시", 2) + "</td><td>" + ta("where." + w[0] + ".pat", "상호작용 패턴 · 도구", 2) + "</td></tr>"; }).join("");
+  var left = '<section class="panel f"><div class="tw"><table class="t"><thead><tr><th>요소</th><th>설계 질문</th><th>우리 단원에서는</th><th>상호작용 · 도구</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+    '<div class="box-soft"><h4>가장 자주 비는 칸</h4><p class="hint">R(재사고·수정)과 E(자기평가). 이 두 칸에 학생 상호작용(검증·반박, 근거 기반 동료평가)을 넣으면 상호작용 수업과 백워드 설계가 맞물립니다.</p></div></section>';
+  var flowTxt = S.flow.filter(function (r) { return v(r.act); }).map(function (r) { return "- " + r.n + "차시: " + r.act; }).join("\n") || "- ⟨미작성⟩";
+  var p = "아래 차시 흐름과 WHERETO 점검표를 보고, 비어 있거나 약한 요소를 찾아 줘.\n특히 R(재사고·수정)과 E(자기평가)에 학생끼리 상호작용하는 장면을 넣을 방법을 질문 형태로 2개 제안해 줘.\n\n[차시 흐름]\n" + flowTxt + "\n\n[WHERETO]\n" + WHERETO.map(function (w) { return "- " + w[1] + " " + w[2] + ": " + or(S.where[w[0]].act); }).join("\n");
+  var info = "아래 내용만 사용해서 동료 교사에게 우리 단원의 수업 흐름을 소개하는 인포그래픽을 만들어 줘.\nW·H·E·R·E·T·O 7요소를 왼쪽에서 오른쪽으로 흐르는 로드맵으로 배치하고, 각 요소에 해당 차시와 학생끼리 상호작용하는 장면을 한 줄씩 넣어 줘.\n학생 상호작용 장면은 같은 색으로 강조해 줘. 아래 내용에 없는 정보는 추가하지 마.\n\n[단원] " + or(S.info.subject) + " · " + or(S.info.unit) + "\n[핵심 아이디어] " + or(S.idea.big) + "\n" + WHERETO.map(function (w) { var x = S.where[w[0]]; return "- " + w[1] + " " + w[2] + ": " + or(x.act) + (v(x.pat) && x.pat !== "–" ? " (상호작용: " + x.pat + ")" : ""); }).join("\n");
+  return head(st, "WHERETO는 새로 짜는 틀이 아니라, 이미 짠 차시 흐름의 빈칸을 찾는 점검표입니다. 다 쓰면 인포그래픽을 요청해 두고 도구 선택으로 넘어갑니다.") + '<div class="cols">' + left +
+    nbPanel("where", [card("chat", "빈 요소 찾기", p, ["where.w.act", "where.r.act"], ""), card("studio", "WHERETO 인포그래픽 (단원 로드맵)", info, ["where.w.act", "where.h.act", "where.e1.act", "where.r.act"], "스튜디오 → 인포그래픽 → 맞춤설정 · 방향 가로 · 세부 수준 상세. 템플릿 10에 삽입, 갤러리 공유용")]) + "</div>";
+};
+R.tools = function (st) {
+  var cands = S.tools.cands.map(function (c, i) { return "<th>" + inp("tools.cands." + i + ".name", "후보 " + (i + 1)) + "</th>"; }).join("");
+  var rows = CRITERIA.map(function (k, ki) {
+    return '<tr><td class="lab">' + (ki + 1) + " " + k[0] + '</td><td class="q">' + k[1] + "</td>" + S.tools.cands.map(function (c, ci) { var s = c.s[ki]; return '<td style="text-align:center;vertical-align:middle"><button type="button" class="score ' + s + '" data-score="' + ci + "." + ki + '" aria-label="' + k[0] + ' 판정">' + ({ o: "○", t: "△", x: "×" }[s] || "·") + "</button></td>"; }).join("") + "</tr>";
+  }).join("");
+  var verdicts = S.tools.cands.map(function (c, i) { if (!v(c.name)) return ""; if (c.s.indexOf("x") >= 0) return '<div class="verdict bad">' + esc(c.name) + ": × 있음 → 다른 도구를 찾습니다</div>"; if (c.s.every(Boolean)) return '<div class="verdict good">' + esc(c.name) + ": 통과" + (c.s.indexOf("t") >= 0 ? " (△는 활용 카드의 설정으로 보완)" : "") + "</div>"; return ""; }).join("");
+  var left = '<section class="panel f">' +
+    field("핵심 차시의 상호작용 패턴", '<select id="f-tools-pattern" data-p="tools.pattern"><option value="">선택하세요</option>' + PATTERNS.map(function (p) { return "<option" + (S.tools.pattern === p ? " selected" : "") + ">" + p + "</option>"; }).join("") + "</select>", "차시 흐름표에서 옮겨 옵니다") +
+    '<div class="fl"><span>AI에게 맡길 역할</span><div class="chips">' + ROLES.map(function (r) { return '<button type="button" class="chipbtn' + (S.tools.roles.indexOf(r) >= 0 ? " on" : "") + '" data-role="' + esc(r) + '">' + r + "</button>"; }).join("") + "</div></div>" +
+    '<div class="tw"><table class="t" style="min-width:540px"><thead><tr><th>선택 기준</th><th>확인 질문</th>' + cands + "</tr></thead><tbody>" + rows + "</tbody></table></div>" +
+    '<p class="hint">버튼을 누를 때마다 ○ 충족 → △ 설정·규칙으로 보완 → × 불가 순으로 바뀝니다.</p>' + verdicts +
+    field("선택한 도구와 이유", ta("tools.chosen", "예) 패들렛 — 필수 입력란으로 역할을 고정하고, 댓글 기록이 협력적 상호작용 루브릭의 증거가 됨", 3)) + "</section>";
+  var ref = '<details class="ref"><summary>도구 지도 · 같은 도구도 설정에 따라 달라집니다</summary><div class="in"><div class="tw" style="border:0"><table><thead><tr><th>도구</th><th>패턴</th><th>상호작용을 일으키는 설정</th><th>장식이 되는 사용</th></tr></thead><tbody>' + TOOLMAP.map(function (r) { return "<tr><td><b>" + r[0] + "</b></td><td>" + r[1] + '</td><td style="color:var(--teal)">' + r[2] + '</td><td style="color:var(--muted)">' + r[3] + "</td></tr>"; }).join("") + '</tbody></table></div></div></details>' +
+    '<details class="ref"><summary>AI에게 맡기지 않을 역할</summary><div class="in">정답 제공자(받아 옮겨 적기만 함) · 결과물 대행자(글·그림·발표 자료를 대신 완성) · 평가자(점수 결정은 교사의 몫)</div></details>';
+  var cur = "소스의 '도구 지도'와 '도구 선택 기준 5가지'를 바탕으로, " + or(S.info.grade) + " " + or(S.info.subject) + " 수업에서 '" + or(S.tools.pattern) + "' 상호작용을 일으킬 도구 후보 3가지를 골라 줘.\n도구별로 ① 학생 사이에 어떤 대화가 일어나는지 ② 상호작용을 일으키는 설정 ③ 로그인·기기 등 운영상 주의점을 표로 정리해 줘.\n도구가 학생의 생각을 대신하는 방식은 빼 줘.\n\n- 핵심 차시 활동: " + or(S.flow[S.flowCore >= 0 ? S.flowCore : 0].act) + "\n- 성취기준 동사: " + or(S.std.verb);
+  var judge = "우리 팀이 후보 도구를 5가지 기준(목적 적합성, 상호작용 유발, 학습 증거, 접근성·안전, 운영 부담)으로 판정한 결과야.\n판정이 너무 후하거나 근거가 약한 칸을 찾아 질문으로 알려 줘. 특히 '도구가 성취기준 동사의 사고를 대신하는지'를 엄격하게 봐 줘.\n\n- 성취기준 동사: " + or(S.std.verb) + "\n- 상호작용 패턴: " + or(S.tools.pattern) + "\n" + S.tools.cands.map(function (c) { return "- " + or(c.name) + ": " + CRITERIA.map(function (k, i) { return k[0] + " " + ({ o: "○", t: "△", x: "×" }[c.s[i]] || "?"); }).join(", "); }).join("\n");
+  var gem = "중학교 " + or(S.info.subject) + " 수업에서 '" + or(S.tools.pattern) + "'을 일으키고 싶어.\n학생끼리 근거를 주고받게 만드는 디지털 도구 3가지를 추천하고, 도구별로 학생 사이에 어떤 대화가 일어나는지, 로그인·기기 등 운영상 주의점을 표로 정리해 줘.\n도구가 학생의 생각을 대신하는 방식은 빼 줘.";
+  return head(st, "도구는 마지막에 고릅니다. 패턴을 정하고, 후보 2~3개를 5가지 기준으로 거릅니다. 하나라도 ×이면 다른 도구를 찾습니다.") + '<div class="cols">' + left +
+    nbPanel("tools", [card("chat", "도구 후보 고르기 (연수 자료 기반)", cur, ["tools.pattern"], "소스 ③ 연수 핵심 자료를 넣었을 때 작동합니다."), card("chat", "우리 팀 판정 검토", judge, ["tools.cands.0.name", "tools.pattern"], ""), card("gem", "도구 지도에 없는 새 도구가 필요할 때", gem, ["tools.pattern"], "노트북은 소스 밖 정보를 잘 답하지 않습니다. 이 프롬프트는 제미나이 일반 채팅에 씁니다. 학생 계정·연령 기준은 직접 확인하세요.")], ref) + "</div>";
+};
+R.cards = function (st) {
+  var html = S.cards.map(function (c, i) {
+    return '<div class="panel f" style="background:var(--surface)"><div class="sub-h">도구 ' + (i + 1) + (i === 1 ? " <span class=\"hint\" style=\"display:inline\">(선택)</span>" : "") + "</div>" + field("도구 이름 · 상호작용 패턴", inp("cards." + i + ".tool", "예) 패들렛 · 역할 분담 협업")) +
+      '<div class="row">' + CARDF.map(function (f) { return field(f[1], ta("cards." + i + "." + f[0], f[2], 2)); }).join("") + "</div></div>";
+  }).join("");
+  var left = '<section class="f">' + html + '<div class="box-amber"><h4>설정이 상호작용을 만든다</h4><p class="hint">좋아요 끄고 댓글 켜기 · 필수 입력란으로 역할 고정 · 모둠별 공간 분리 · 수업 전 학생 계정으로 1분 접속해 보기</p></div></section>';
+  var p = "아래 도구 활용 카드를 점검해 줘.\n① 도구 설정이 학생 사이의 대화를 실제로 일으키는가 ② 남는 증거가 루브릭의 '협력적 상호작용' 요소와 연결되는가 ③ Plan B가 현실적인가를 판정하고, 빠진 설정을 질문 1~2개로 알려 줘.\n\n- 협력적 상호작용 루브릭(상): " + or(S.rubric[2].hi) + "\n" + S.cards.filter(function (c, i) { return i === 0 || v(c.tool); }).map(function (c, i) { return "[도구 " + (i + 1) + "] " + or(c.tool) + "\n" + CARDF.map(function (f) { return "- " + f[1] + ": " + or(c[f[0]]); }).join("\n"); }).join("\n\n");
+  return head(st, "같은 도구도 설정과 규칙에 따라 상호작용 도구가 되기도, 장식이 되기도 합니다. 도구별로 언제, 누가, 어떤 설정으로, 무엇을 남기는지 씁니다.") + '<div class="cols">' + left + nbPanel("cards", [card("chat", "활용 카드 점검", p, ["cards.0.tool", "cards.0.setting", "cards.0.task"], "")]) + "</div>";
+};
+R.core = function (st) {
+  var rows = S.core.phases.map(function (p, i) { return '<tr><td class="lab">' + PHASES[i] + "<br>" + inp("core.phases." + i + ".time", "분") + "</td><td>" + ta("core.phases." + i + ".act", "학습 활동", 3) + "</td><td>" + ta("core.phases." + i + ".inter", i === 0 ? "예) 개인 입장 공개 → 반대 입장끼리 짝 → 근거 1개씩 교환" : "누가 → 누구에게 → 무엇을", 3) + "</td><td>" + ta("core.phases." + i + ".tool", "활용 카드의 도구·설정", 3) + "</td><td>" + ta("core.phases." + i + ".ev", "평가·피드백", 3) + "</td></tr>"; }).join("");
+  var left = '<section class="panel f">' + field("핵심 차시 학습목표", ta("core.goal", "○차시 · 학생은 ~할 수 있다.", 2)) +
+    '<div class="tw"><table class="t" style="min-width:760px"><thead><tr><th style="width:90px">단계 · 시간</th><th>학습 활동</th><th>상호작용 흐름 (학생 → 학생)</th><th>도구 · AI 역할</th><th>평가 · 피드백</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+    '<div class="box-amber"><h4>도구 빼기 테스트</h4><p class="hint" style="margin-bottom:8px">이 도구를 빼면 학생끼리 나누던 대화도 사라지는가?</p><div class="chips"><button type="button" class="chipbtn' + (S.core.remove === "yes" ? " on" : "") + '" data-remove="yes">예 · 상호작용을 일으킴</button><button type="button" class="chipbtn' + (S.core.remove === "no" ? " on" : "") + '" data-remove="no">아니오 · 장식 → 다시 설계</button></div></div></section>';
+  var table = S.core.phases.map(function (p, i) { return "- " + PHASES[i] + (v(p.time) ? "(" + p.time + ")" : "") + " | 활동: " + or(p.act) + " | 상호작용: " + or(p.inter) + " | 도구: " + or(p.tool); }).join("\n");
+  var p = "아래 핵심 차시 설계에서 상호작용 흐름이 '학생 → 학생'으로 구체적으로 쓰였는지 단계별로 판정해 줘.\n도구 이름만 있고 누가 누구에게 무엇을 주는지 불분명한 단계를 지적하고, 고칠 방향은 질문으로만 알려 줘.\n\n- 학습목표: " + or(S.core.goal) + "\n" + table;
+  return head(st, "도구 활용 카드의 도구·설정을 핵심 차시에 넣고, 흐름을 '학생 → 학생' 화살표로 완성합니다. 도구 이름만 적으면 다시 씁니다.") + '<div class="cols">' + left + nbPanel("core", [card("chat", "상호작용 흐름 점검", p, ["core.goal", "core.phases.1.inter"], "")]) + "</div>";
+};
+R.d3 = function (st) {
+  var per = PERSONAS.filter(function (x) { return x[0] === S.meta.persona; })[0] || PERSONAS[0];
+  var table = S.core.phases.map(function (p, i) { return "- " + PHASES[i] + (v(p.time) ? "(" + p.time + ")" : "") + ": " + or(p.act) + " / 상호작용: " + or(p.inter) + " / 도구: " + or(p.tool); }).join("\n");
+  var sim = "너는 " + per[2] + " " + (v(S.info.grade) || "중학생") + "이야.\n아래 수업 흐름대로 수업을 받는다고 상상하고, 어디서 포기하게 될지, 모둠 대화에서 언제 빠지게 될지 학생 말투로 말해 줘.\n마지막에 교사가 미리 준비하면 좋을 장치 1가지를 제안해 줘.\n\n- 학습목표: " + or(S.core.goal) + "\n" + table;
+  var left = '<section class="panel f"><div class="sub-h">① AI 페르소나 시뮬레이션</div><div class="chips">' + PERSONAS.map(function (x) { return '<button type="button" class="chipbtn' + (S.meta.persona === x[0] ? " on" : "") + '" data-persona="' + x[0] + '">' + x[1] + "</button>"; }).join("") + '</div><p class="hint">페르소나를 바꾸면 오른쪽 프롬프트가 바뀝니다. 세 명 모두 한 번씩 돌려 봅니다.</p>' +
+    '<div class="row">' + PERSONAS.map(function (x) { return field(x[1], ta("d3." + x[0], "어디서 멈추고, 무엇을 준비할까?", 3)); }).join("") + "</div>" +
+    '<div class="sub-h">② 동료 피드백 (Yes-And)</div><p class="hint">다른 팀 구글 슬라이드(템플릿 12·13)에 댓글을 남기고, 우리 팀이 받은 댓글을 옮겨 적습니다.</p><div class="row">' + field("Yes · 살릴 점", ta("d3.yes", "댓글에서 옮겨 적기", 2)) + field("And · 더하면 좋을 점", ta("d3.and", "댓글에서 옮겨 적기", 2)) + "</div>" +
+    '<div class="sub-h">③ Plan B</div><div class="row">' + field("기술 장애 시", ta("d3.pbTech", "로그인·네트워크 실패 대비", 2)) + field("상호작용이 안 일어날 때", ta("d3.pbInter", "대화를 다시 여는 교사 발문·장치", 2)) + "</div>" +
+    field("최종 수정 사항", ta("d3.final", "오늘 받은 피드백으로 바꾼 것 1~2가지 (어느 슬라이드, 무엇을)", 2)) + "</section>";
+  return head(st, "수업 전에 수업을 돌려 봅니다. AI 페르소나로 막히는 지점을 찾고, 동료의 Yes-And 비평과 Plan B로 설계를 다듬습니다.") + '<div class="cols">' + left + nbPanel("d3", [card("gem", "페르소나 시뮬레이션 · " + per[1], sim, ["core.phases.1.act"], "역할극은 소스와 무관하므로 제미나이 일반 채팅(또는 노트북 채팅)에 씁니다.")]) + "</div>";
+};
+R.sum = function (st) {
+  var secs = STEPS.slice(0, 12).map(function (s2) { var p = progress(s2.id); return '<section><h3>' + esc(s2.name) + ' <span class="slide" style="font-weight:400">' + s2.slide + " · " + Math.round(p * 100) + '%</span></h3><pre>' + esc(sec(s2.id)).replace(/\(미작성\)/g, '<span class="empty-mark">(미작성)</span>') + (v(S.memo[s2.id]) ? "\n- 노트북 답변 메모: " + esc(S.memo[s2.id]) : "") + "</pre></section>"; }).join("");
+  var report = "소스의 '백워드 설계안'만 사용해서 핵심 차시의 교수·학습 과정안을 작성해 줘.\n구성: 단원명, 성취기준, 학습목표, 수업 흐름 표(단계·시간·교사 활동·학생 활동·상호작용·AI·디지털 도구·평가), 평가 계획(루브릭), 유의점.\n문체는 개조식(~함, ~임)으로 하고, 소스에 없는 활동은 추가하지 마.";
+  var left = '<section class="panel f"><div class="row"><button type="button" class="btn pri" id="allCopy">설계안 전체 텍스트 복사</button><button type="button" class="btn" id="bkCopy">백업 코드 복사</button></div>' +
+    '<p class="hint">전체 텍스트는 구글 슬라이드 템플릿에 옮기거나, 노트북에 소스 ④로 추가할 때 씁니다. 이 페이지 내용은 지금 쓰는 브라우저에만 저장되므로, 다른 컴퓨터에서 이어 쓰려면 백업 코드를 복사해 두세요.</p>' +
+    '<div class="sum">' + secs + "</div>" +
+    '<div class="sub-h">백업 불러오기</div><textarea id="bkIn" rows="3" placeholder="복사해 둔 백업 코드를 여기에 붙여 넣으세요"></textarea><div class="row"><button type="button" class="btn" id="bkLoad">백업 불러오기</button><span id="bkMsg" class="hint"></span></div>' +
+    '<div class="sub-h">처음부터 다시</div><div class="row"><span id="resetArea"><button type="button" class="btn warn" id="resetBtn">모두 비우기</button></span><button type="button" class="btn" id="exBtn">예시(AI 탐정단) 다시 보기</button></div></section>';
+  var right = nbPanel("sum", [
+    card("chat", "소스 ④로 설계안 추가하기", "1. 왼쪽 '설계안 전체 텍스트 복사'를 누릅니다.\n2. 노트북 → 소스 추가 → 복사된 텍스트에 붙여 넣습니다.\n3. 소스 이름을 '백워드 설계안'으로 바꿉니다.\n4. 아래 스튜디오 프롬프트를 사용합니다.", [], "안내문입니다.", true),
+    card("studio", "교수·학습 과정안 (스튜디오 보고서)", report, ["core.goal"], "스튜디오 → 보고서 → 직접 만들기에 붙여넣기"),
+    card("chat", "설계안 최종 점검", "소스의 '백워드 설계안'과 '연수 핵심 자료'를 비교해서, 우리 설계안이 ① 성취기준 동사 – 루브릭 – 활동의 정합성 ② 도구 선택 기준 5가지 ③ 학생 → 학생 상호작용 흐름을 지켰는지 항목별로 판정해 줘. 부족한 점은 질문으로만 알려 줘.", [], "")]);
+  return head(st, "단계별 내용을 한 번에 모아 봅니다. 미작성 칸을 확인하고, 텍스트를 구글 슬라이드와 노트북으로 옮깁니다.") + '<div class="cols">' + left + right + "</div>";
+};
+
+// ---------------- render ----------------
+var nav = document.getElementById("nav"), main = document.getElementById("main");
+function renderNav() {
+  var html = "", lastG = "";
+  STEPS.forEach(function (st, i) {
+    if (st.grp !== lastG) { if (lastG) html += "</div>"; html += '<div class="grp"><div class="grp-h">' + st.grp + (GRP_TIME[st.grp] ? '<span class="t">' + GRP_TIME[st.grp] + "</span>" : "") + "</div>"; lastG = st.grp; }
+    var p = st.id === "sum" ? -1 : progress(st.id);
+    html += '<button type="button" class="step-btn' + (S.meta.step === i ? " on" : "") + (st.hot ? " hot" : "") + '" data-step="' + i + '"' + (S.meta.step === i ? ' aria-current="step"' : "") + '><span class="no">' + st.no + '</span><span class="lbl">' + st.name + "</span>" + (p < 0 ? "" : '<span class="dot ' + (p >= 0.99 ? "full" : p > 0 ? "half" : "") + '" title="' + Math.round(p * 100) + '%"></span>') + "</button>";
+  });
+  nav.innerHTML = html + "</div>";
+  document.getElementById("teamPill").textContent = v(S.info.team) || "팀 미입력";
+  document.getElementById("exampleBar").hidden = !S.meta.example;
+}
+function renderMain(keepScroll) {
+  var st = STEPS[S.meta.step] || STEPS[0];
+  var pager = '<div class="pager">' + (S.meta.step > 0 ? '<button type="button" class="btn" data-step="' + (S.meta.step - 1) + '">← ' + STEPS[S.meta.step - 1].name + "</button>" : "<span></span>") + (S.meta.step < STEPS.length - 1 ? '<button type="button" class="btn pri" data-step="' + (S.meta.step + 1) + '">' + STEPS[S.meta.step + 1].name + " →</button>" : "") + "</div>";
+  main.innerHTML = R[st.id](st) + pager;
+  if (!keepScroll) window.scrollTo(0, 0);
+}
+// refresh only the notebook panel (keeps focus in the form)
+function refreshPanel() {
+  var st = STEPS[S.meta.step]; var tmp = document.createElement("div"); tmp.innerHTML = R[st.id](st);
+  var newNb = tmp.querySelector(".nb"), oldNb = main.querySelector(".nb");
+  if (newNb && oldNb) {
+    var oldCards = oldNb.querySelectorAll(".pc"), newCards = newNb.querySelectorAll(".pc");
+    newCards.forEach(function (c, i) { if (oldCards[i]) oldCards[i].replaceWith(c); });
+  }
+  var newSum = tmp.querySelector(".sum"), oldSum = main.querySelector(".sum");
+  if (newSum && oldSum) oldSum.replaceWith(newSum);
+  var newV = tmp.querySelectorAll(".verdict"); var oldV = main.querySelectorAll("section.panel > .verdict");
+  if (st.id === "tools") { oldV.forEach(function (x) { x.remove(); }); var anchor = main.querySelector('label.fl textarea[data-p="tools.chosen"]'); if (anchor) { var lab = anchor.closest("label"); tmp.querySelectorAll("section.panel > .verdict").forEach(function (x) { lab.parentNode.insertBefore(x, lab); }); } }
+}
+function go(i) { S.meta.step = Math.max(0, Math.min(STEPS.length - 1, i)); save(); renderNav(); renderMain(); }
+
+var toastEl = document.getElementById("toast"), toastT;
+function toast(msg) { toastEl.textContent = msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(function () { toastEl.classList.remove("show"); }, 1800); }
+function copyText(text, btn) {
+  function fallback() {
+    var t = document.createElement("textarea"); t.value = text; t.setAttribute("readonly", ""); t.style.position = "fixed"; t.style.opacity = "0"; document.body.appendChild(t); t.select();
+    var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(t);
+    if (ok) toast("복사했습니다"); else { var pre = btn && btn.closest(".pc") ? btn.closest(".pc").querySelector("pre") : null; if (pre) { var r = document.createRange(); r.selectNodeContents(pre); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } toast("선택된 글을 Ctrl+C로 복사하세요"); }
+  }
+  try { navigator.clipboard.writeText(text).then(function () { toast("복사했습니다"); }, fallback); } catch (e) { fallback(); }
+}
+
+// ---------------- events ----------------
+document.addEventListener("input", function (e) {
+  var p = e.target.getAttribute("data-p"); if (!p) return;
+  set(p, e.target.value);
+  if (p.indexOf("memo.") !== 0) S.meta.example = S.meta.example; // example flag stays until cleared
+  save(); renderNav(); refreshPanel();
+});
+document.addEventListener("change", function (e) {
+  var t = e.target;
+  if (t.tagName === "SELECT" && t.getAttribute("data-p")) { set(t.getAttribute("data-p"), t.value); save(); renderNav(); refreshPanel(); }
+  if (t.hasAttribute("data-gate")) { S.idea.gate[+t.getAttribute("data-gate")] = t.checked; save(); renderNav(); }
+});
+document.addEventListener("click", function (e) {
+  var b = e.target.closest("button"); if (!b) return;
+  if (b.hasAttribute("data-step")) { go(+b.getAttribute("data-step")); return; }
+  if (b.hasAttribute("data-copy")) { copyText(decodeURIComponent(b.getAttribute("data-copy")), b); return; }
+  if (b.hasAttribute("data-core")) { var i = +b.getAttribute("data-core"); S.flowCore = S.flowCore === i ? -1 : i; save(); renderNav(); renderMain(true); return; }
+  if (b.hasAttribute("data-score")) { var ij = b.getAttribute("data-score").split("."); var c = S.tools.cands[+ij[0]].s; var cyc = { "": "o", o: "t", t: "x", x: "" }; c[+ij[1]] = cyc[c[+ij[1]]]; save(); renderNav(); renderMain(true); return; }
+  if (b.hasAttribute("data-role")) { var r = b.getAttribute("data-role"); var a = S.tools.roles; var k = a.indexOf(r); if (k >= 0) a.splice(k, 1); else a.push(r); save(); renderMain(true); return; }
+  if (b.hasAttribute("data-remove")) { S.core.remove = S.core.remove === b.getAttribute("data-remove") ? "" : b.getAttribute("data-remove"); save(); renderNav(); renderMain(true); return; }
+  if (b.hasAttribute("data-persona")) { S.meta.persona = b.getAttribute("data-persona"); save(); renderMain(true); return; }
+  if (b.id === "clearBtn" || b.id === "resetBtn") {
+    var area = b.parentNode; var orig = area.innerHTML;
+    area.innerHTML = '<span class="hint" style="display:inline">모든 칸을 비웁니다. </span><button type="button" class="btn warn" data-confirm="clear">비우기</button> <button type="button" class="btn" data-confirm="cancel">취소</button>';
+    area.setAttribute("data-orig", orig); return;
+  }
+  if (b.getAttribute("data-confirm") === "cancel") { var ar = b.parentNode; ar.innerHTML = ar.getAttribute("data-orig"); return; }
+  if (b.getAttribute("data-confirm") === "clear") { S = blank(); S.meta.step = 0; save(); renderNav(); renderMain(); toast("비웠습니다. 기본 정보부터 시작하세요"); return; }
+  if (b.id === "exBtn") { S = example(); S.meta.step = 12; save(); renderNav(); renderMain(); toast("예시를 불러왔습니다"); return; }
+  if (b.id === "allCopy") { copyText(designText(), b); return; }
+  if (b.id === "bkCopy") { copyText(JSON.stringify(S), b); return; }
+  if (b.id === "bkLoad") {
+    var msg = document.getElementById("bkMsg");
+    try { var data = JSON.parse(document.getElementById("bkIn").value.trim()); if (!data || !data.info || !data.std) throw new Error("x"); S = merge(blank(), data); S.meta.step = 12; save(); renderNav(); renderMain(); toast("백업을 불러왔습니다"); }
+    catch (err) { msg.textContent = "백업 코드를 읽지 못했습니다. '백업 코드 복사'로 만든 글 전체를 붙여 넣었는지 확인하세요."; }
+    return;
+  }
+});
+
+renderNav(); renderMain();
+})();
+</script>
+
+</body>
+</html>
